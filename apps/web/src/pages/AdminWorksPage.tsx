@@ -31,7 +31,7 @@ import { ReleaseForm } from "../components/ReleaseForm";
 import { TaxonomyPanel } from "../components/TaxonomyPanel";
 import { WorkForm } from "../components/WorkForm";
 
-export function AdminWorksPage() {
+export function AdminWorksPage({ onOpenImportGovernance }: { onOpenImportGovernance?: () => void } = {}) {
   const [works, setWorks] = useState<Work[]>([]);
   const [selectedWorkId, setSelectedWorkId] = useState<string | null>(null);
   const [selectedWork, setSelectedWork] = useState<Work | null>(null);
@@ -158,12 +158,7 @@ export function AdminWorksPage() {
         </div>
         {message ? <p>{message}</p> : null}
         <AuditLogPanel />
-        <ImportPanel
-          onImported={async (workId) => {
-            await loadWorks();
-            setSelectedWorkId(workId);
-          }}
-        />
+        <ImportPanel onOpenWorkbench={onOpenImportGovernance} />
         <h1>新建作品</h1>
         <WorkForm submitLabel="创建作品" onSubmit={handleCreate} />
         <h2>作品列表</h2>

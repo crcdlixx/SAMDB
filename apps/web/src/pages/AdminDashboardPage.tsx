@@ -4,13 +4,14 @@ import { AdminRelationsPage } from "./AdminRelationsPage";
 import { AdminSettingsPage } from "./AdminSettingsPage";
 import { AdminUsersPage } from "./AdminUsersPage";
 import { AdminWorksPage } from "./AdminWorksPage";
+import { AdminImportWorkbenchPage } from "./AdminImportWorkbenchPage";
 
 type AdminDashboardPageProps = {
   user: AuthUser;
   onLogout?: () => void;
 };
 
-type AdminModule = "overview" | "works" | "relations" | "taxonomy" | "import-export" | "users" | "audit" | "settings";
+type AdminModule = "overview" | "works" | "relations" | "taxonomy" | "import-export" | "import-governance" | "users" | "audit" | "settings";
 
 export function AdminDashboardPage({ user, onLogout }: AdminDashboardPageProps) {
   const [activeModule, setActiveModule] = useState<AdminModule>("overview");
@@ -19,6 +20,8 @@ export function AdminDashboardPage({ user, onLogout }: AdminDashboardPageProps) 
   const showUsers = activeModule === "users" && canManageUsers;
   const showSettings = activeModule === "settings" && canManageUsers;
   const showRelations = activeModule === "relations";
+  const canImport = user.role === "owner" || user.role === "editor";
+  const showImportGovernance = activeModule === "import-governance";
   const showWorks = activeModule === "works" || activeModule === "overview" || activeModule === "taxonomy" || activeModule === "import-export" || activeModule === "audit";
   const navButton = (module: AdminModule, label: string) => (
     <button
@@ -39,6 +42,7 @@ export function AdminDashboardPage({ user, onLogout }: AdminDashboardPageProps) 
           {navButton("relations", "关系")}
           {navButton("taxonomy", "分类")}
           {navButton("import-export", "导入导出")}
+          {navButton("import-governance", "导入治理")}
           {canManageUsers ? navButton("users", "用户与权限") : null}
           {canReadAudit ? navButton("audit", "审计日志") : null}
           {canManageUsers ? navButton("settings", "设置") : null}
@@ -56,10 +60,11 @@ export function AdminDashboardPage({ user, onLogout }: AdminDashboardPageProps) 
         {showUsers ? <AdminUsersPage /> : null}
         {showSettings ? <AdminSettingsPage /> : null}
         {showRelations ? <AdminRelationsPage /> : null}
+        {showImportGovernance ? <AdminImportWorkbenchPage user={user} /> : null}
         {showWorks ? (
           <>
             {activeModule === "overview" ? <AdminRelationsPage /> : null}
-            <AdminWorksPage />
+            <AdminWorksPage onOpenImportGovernance={canImport ? () => setActiveModule("import-governance") : undefined} />
           </>
         ) : null}
       </div>

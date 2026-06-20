@@ -758,3 +758,136 @@ export async function deleteAdminCover(id: string): Promise<void> {
   const response = await adminFetch(`/covers/${id}`, { method: "DELETE" });
   if (!response.ok) throw new Error("Failed to delete cover");
 }
+
+export type ImportJobSummary = {
+  totalCandidates: number;
+  validCount: number;
+  warningCount: number;
+  invalidCount: number;
+  errorCount: number;
+  matchCount: number;
+  createCount: number;
+  skipCount: number;
+  overwriteCount: number;
+  mergeCount: number;
+  needsReviewCount: number;
+  backupFile?: string;
+  successCount?: number;
+  failedCount?: number;
+};
+
+export type ImportCandidateIssue = {
+  id: number;
+  severity: "error" | "warning" | "info";
+  issueType: string;
+  fieldPath: string | null;
+  message: string;
+  createdAt: string;
+};
+
+export type ImportCandidateMatch = {
+  id: number;
+  existingWorkId: string;
+  existingTitle: string | null;
+  matchType: string;
+  score: number;
+  evidence: Record<string, unknown>;
+  createdAt: string;
+};
+
+export type ImportCandidate = {
+  id: string;
+  jobId: string;
+  sourceIndex: number;
+  proposedWorkId: string | null;
+  proposedTitle: string | null;
+  parsed: Record<string, unknown>;
+  status: string;
+  action: "create" | "skip" | "overwrite" | "merge" | "needs_review";
+  targetWorkId: string | null;
+  resultWorkId: string | null;
+  errorMessage: string | null;
+  issues: ImportCandidateIssue[];
+  matches: ImportCandidateMatch[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ImportJob = {
+  id: string;
+  sourceType: string;
+  status: string;
+  actor: string | null;
+  summary: ImportJobSummary | null;
+  createdAt: string;
+  updatedAt: string;
+  executedAt: string | null;
+  candidates?: ImportCandidate[];
+};
+
+export type BackupSnapshot = {
+  id: string;
+  filePath: string;
+  reason: string;
+  actor: string | null;
+  relatedJobId: string | null;
+  sizeBytes: number | null;
+  createdAt: string;
+};
+
+export async function previewImportJob(payload: {
+  sourceType: "markdown" | "json";
+  markdown?: string;
+  items?: Record<string, unknown>[];
+}): Promise<ImportJob> {
+  const response = await adminFetch("/import-jobs/preview", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({})) as { error?: string };
+    throw new Error(body.error ?? "Failed to create preview job");
+  }
+  return response.json() as Promise<ImportJob>;
+}
+
+export async function fetchAdminImportJobs(): Promise<{ items: ImportJob[] }> {
+  const response = await adminFetch("/import-jobs");
+  if (!response.ok) throw new Error("Failed to fetch import jobs");
+  return response.json() as Promise<{ items: ImportJob[] }>;
+}
+
+export async function fetchAdminImportJob(id: string): Promise<ImportJob> {
+  const response = await adminFetch(`/import-jobs/${id}`);
+  if (!response.ok) throw new Error("Failed to fetch import job");
+  return response.json() as Promise<ImportJob>;
+}
+
+export async function updateImportCandidate(
+  id: string,
+  patch: { action?: ImportCandidate["action"]; targetWorkId?: string | null }
+): Promise<ImportCandidate> {
+  const response = await adminFetch(`/import-candidates/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch)
+  });
+  if (!response.ok) throw new Error("Failed to update import candidate");
+  return response.json() as Promise<ImportCandidate>;
+}
+
+export async function executeImportJob(id: string): Promise<ImportJob> {
+  const response = await adminFetch(`/import-jobs/${id}/execute`, { method: "POST" });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({})) as { error?: string };
+    throw new Error(body.error ?? "Failed to execute import job");
+  }
+  return response.json() as Promise<ImportJob>;
+}
+
+export async function fetchAdminBackups(): Promise<{ items: BackupSnapshot[] }> {
+  const response = await adminFetch("/backups");
+  if (!response.ok) throw new Error("Failed to fetch backups");
+  return response.json() as Promise<{ items: BackupSnapshot[] }>;
+}

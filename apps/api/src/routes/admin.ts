@@ -8,6 +8,16 @@ import { createContributor, deleteContributor, getContributorById, listContribut
 import { createCover, deleteCover, getCoverById, listCoversForWork, updateCover } from "../services/covers";
 import { createExternalLink, deleteExternalLink, getExternalLinkById, listExternalLinksForWork, updateExternalLink } from "../services/externalLinks";
 import { exportWorksToMarkdown, importWorkFromMarkdown } from "../services/importExport";
+import {
+  buildFieldComparison,
+  createPreviewJob,
+  executeImportJob,
+  getImportJob,
+  listImportJobs,
+  updateImportCandidate,
+  type CandidateAction
+} from "../services/importGovernance";
+import { getDefaultDatabasePath, listBackupSnapshots } from "../services/backup";
 import { createWorkRelation, deleteWorkRelation, getWorkRelationById, listRelationQualityIssues, listRelationsForWork, updateWorkRelation } from "../services/relations";
 import { createRelease, deleteRelease, getReleaseById, listReleasesForWork, updateRelease } from "../services/releases";
 import { createSource, deleteSource, getSourceById, listSourcesForWork, updateSource } from "../services/sources";
@@ -20,7 +30,12 @@ import { createWork, deleteWork, getWorkById, listWorks, updateWork } from "../s
 
 type AdminEnv = { Variables: { user: PublicUser } };
 
-export function createAdminApp(db: SamDb): Hono<AdminEnv> {
+type AdminAppOptions = {
+  databasePath?: string;
+};
+
+export function createAdminApp(db: SamDb, options: AdminAppOptions = {}): Hono<AdminEnv> {
+  const databasePath = options.databasePath ?? getDefaultDatabasePath();
   const app = new Hono<AdminEnv>();
 
   app.use("*", requireAuth(db));
@@ -43,6 +58,29 @@ export function createAdminApp(db: SamDb): Hono<AdminEnv> {
 
     if (method === "POST" && (path.endsWith("/export") || path.endsWith("/import"))) {
       if (!canRole(role, "import_export")) return c.json({ error: "Forbidden" }, 403);
+      return next();
+    }
+
+    if (method === "POST" && path.endsWith("/import-jobs/preview")) {
+      if (!canRole(role, "import_export")) return c.json({ error: "Forbidden" }, 403);
+      return next();
+    }
+
+    if (method === "POST" && /\/import-jobs\/[^/]+\/execute$/.test(path)) {
+      if (!canRole(role, "import_export")) return c.json({ error: "Forbidden" }, 403);
+      return next();
+    }
+
+    if (method === "PATCH" && /\/import-candidates\/[^/]+$/.test(path)) {
+      if (!canRole(role, "import_export")) return c.json({ error: "Forbidden" }, 403);
+      return next();
+    }
+
+    if (method === "GET" && (path.endsWith("/import-jobs") || /\/import-jobs\/[^/]+$/.test(path))) {
+      return next();
+    }
+
+    if (method === "GET" && path.endsWith("/backups")) {
       return next();
     }
 
@@ -479,6 +517,152 @@ export function createAdminApp(db: SamDb): Hono<AdminEnv> {
       after: work
     });
     return c.json(work, 201);
+  });
+
+  app.post("/import-jobs/preview", async (c) => {
+    const body = await c.req.json() as {
+      sourceType?: "markdown" | "json";
+      markdown?: string;
+      items?: Record<string, unknown>[];
+    };
+    if (!body.sourceType) return c.json({ error: "sourceType is required" }, 400);
+    if (body.sourceType === "markdown" && !body.markdown?.trim()) {
+      return c.json({ error: "markdown is required for markdown sourceType" }, 400);
+    }
+    if (body.sourceType === "json" && (!body.items || !Array.isArray(body.items))) {
+      return c.json({ error: "items array is required for json sourceType" }, 400);
+    }
+
+    const job = createPreviewJob(db, {
+      sourceType: body.sourceType,
+      markdown: body.markdown,
+      items: body.items,
+      actor: getActor(c)
+    });
+    createAuditLog(db, {
+      entityType: "import_job",
+      entityId: job.id,
+      action: "preview",
+      actor: getActor(c),
+      after: { summary: job.summary, candidateCount: job.candidates.length }
+    });
+    return c.json(job, 201);
+  });
+
+  app.get("/import-jobs", (c) => c.json(listImportJobs(db)));
+
+  app.get("/import-jobs/:id", (c) => {
+    const job = getImportJob(db, c.req.param("id"));
+    if (!job) return c.json({ error: "Not found" }, 404);
+    return c.json(job);
+  });
+
+  app.patch("/import-candidates/:id", async (c) => {
+    const body = await c.req.json() as { action?: CandidateAction; targetWorkId?: string | null };
+    const candidateId = c.req.param("id");
+    try {
+      const candidate = updateImportCandidate(db, candidateId, body);
+      createAuditLog(db, {
+        entityType: "import_candidate",
+        entityId: candidateId,
+        action: "update_candidate",
+        actor: getActor(c),
+        after: { action: candidate.action, targetWorkId: candidate.targetWorkId }
+      });
+      return c.json(candidate);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Update failed";
+      if (message.includes("not found")) return c.json({ error: message }, 404);
+      return c.json({ error: message }, 400);
+    }
+  });
+
+  app.post("/import-jobs/:id/execute", async (c) => {
+    const jobId = c.req.param("id");
+    const job = getImportJob(db, jobId);
+    if (!job) return c.json({ error: "Not found" }, 404);
+
+    try {
+      const executed = executeImportJob(db, jobId, {
+        actor: getActor(c),
+        databasePath
+      });
+
+      if (executed.summary?.backupFile) {
+        createAuditLog(db, {
+          entityType: "backup",
+          entityId: jobId,
+          action: "create",
+          actor: getActor(c),
+          after: { filePath: executed.summary.backupFile, relatedJobId: jobId }
+        });
+      }
+
+      for (const candidate of executed.candidates) {
+        if (candidate.status === "skipped") {
+          createAuditLog(db, {
+            entityType: "work",
+            entityId: candidate.proposedWorkId ?? candidate.id,
+            action: "import_skip",
+            actor: getActor(c),
+            after: { candidateId: candidate.id }
+          });
+          continue;
+        }
+        if (candidate.status !== "imported") continue;
+        const auditAction = candidate.action === "create"
+          ? "import_create"
+          : candidate.action === "overwrite"
+            ? "import_overwrite"
+            : candidate.action === "merge"
+              ? "import_merge"
+              : null;
+        if (!auditAction || !candidate.resultWorkId) continue;
+        createAuditLog(db, {
+          entityType: "work",
+          entityId: candidate.resultWorkId,
+          action: auditAction,
+          actor: getActor(c),
+          after: { candidateId: candidate.id, action: candidate.action }
+        });
+      }
+
+      createAuditLog(db, {
+        entityType: "import_job",
+        entityId: jobId,
+        action: "execute",
+        actor: getActor(c),
+        after: executed.summary
+      });
+
+      return c.json(executed);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Execution failed";
+      if (message.includes("requires review") || message.includes("blocking errors") || message.includes("does not allow") || message.includes("No executable")) {
+        return c.json({ error: message }, 409);
+      }
+      return c.json({ error: message }, 500);
+    }
+  });
+
+  app.get("/backups", (c) => {
+    const role = getRole(c);
+    const result = listBackupSnapshots(db);
+    if (role !== "owner") {
+      return c.json({
+        items: result.items.map((item) => ({
+          ...item,
+          filePath: item.filePath.replace(/[^/\\]+$/, "[hidden]")
+        }))
+      });
+    }
+    return c.json(result);
+  });
+
+  app.get("/import-candidates/:id/comparison", (c) => {
+    const comparison = buildFieldComparison(db, c.req.param("id"));
+    if (!comparison) return c.json({ error: "No comparison available" }, 404);
+    return c.json({ items: comparison });
   });
 
   app.get("/audit-logs", requirePermission("read_audit"), (c) => {

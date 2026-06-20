@@ -400,6 +400,79 @@ form.work-card {
   font-size: 0.9rem;
 }
 
+.import-workbench-grid {
+  display: grid;
+  grid-template-columns: 220px 1fr 320px;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.import-job-list,
+.import-detail-panel {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+
+.import-job-list .list-row.active {
+  border-color: #9aa69b;
+  background: #eef3ee;
+}
+
+.import-preview-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.import-preview-table th,
+.import-preview-table td {
+  border: 1px solid #e0e1dc;
+  padding: 6px 8px;
+  text-align: left;
+}
+
+.import-preview-table tr.selected {
+  background: #eef3ee;
+}
+
+.import-preview-table tbody tr {
+  cursor: pointer;
+}
+
+.parsed-json {
+  max-height: 200px;
+  overflow: auto;
+  font-size: 0.82rem;
+  background: #fff;
+  border: 1px solid #e0e1dc;
+  padding: 8px;
+  border-radius: 6px;
+}
+
+.tag.error {
+  background: #fdecea;
+  color: #7d2e25;
+}
+
+.tag.warning {
+  background: #fff8e6;
+  color: #7a5b00;
+}
+
+.import-execution-panel ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.issue-error {
+  color: #7d2e25;
+}
+
+.issue-warning {
+  color: #7a5b00;
+}
+
 .detail-cover {
   width: min(320px, 100%);
   aspect-ratio: 3 / 4;

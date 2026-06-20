@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 import type { SamDb } from "../db";
 import { listAccessEntriesForRelease } from "./accessEntries";
+import { extractFrontmatter, asStringArray, optionalString } from "./importParser";
 import { listRelationsForWork } from "./relations";
 import { listReleasesForWork } from "./releases";
 import { listTermsForWork } from "./workTaxonomyTerms";
@@ -61,17 +62,4 @@ export function importWorkFromMarkdown(db: SamDb, markdown: string): WorkView {
   });
 }
 
-function extractFrontmatter(markdown: string): string {
-  const match = markdown.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-  if (!match) throw new Error("Markdown does not contain YAML frontmatter");
-  return match[1];
-}
-
-function optionalString(value: unknown): string | null {
-  if (value === undefined || value === null || value === "") return null;
-  return String(value);
-}
-
-function asStringArray(value: unknown): string[] {
-  return Array.isArray(value) ? value.map(String) : [];
-}
+export { extractFrontmatter } from "./importParser";

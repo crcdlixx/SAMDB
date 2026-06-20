@@ -214,3 +214,69 @@ CREATE INDEX IF NOT EXISTS idx_relations_source ON work_relations(source_work_id
 CREATE INDEX IF NOT EXISTS idx_relations_target ON work_relations(target_work_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_token_hash ON sessions(token_hash);
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+
+CREATE TABLE IF NOT EXISTS import_jobs (
+  id TEXT PRIMARY KEY,
+  source_type TEXT NOT NULL,
+  status TEXT NOT NULL,
+  actor TEXT,
+  raw_input_path TEXT,
+  summary_json TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  executed_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS import_candidates (
+  id TEXT PRIMARY KEY,
+  job_id TEXT NOT NULL,
+  source_index INTEGER NOT NULL,
+  proposed_work_id TEXT,
+  proposed_title TEXT,
+  parsed_json TEXT NOT NULL,
+  status TEXT NOT NULL,
+  action TEXT NOT NULL,
+  target_work_id TEXT,
+  result_work_id TEXT,
+  error_message TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY (job_id) REFERENCES import_jobs(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS import_candidate_issues (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  candidate_id TEXT NOT NULL,
+  severity TEXT NOT NULL,
+  issue_type TEXT NOT NULL,
+  field_path TEXT,
+  message TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (candidate_id) REFERENCES import_candidates(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS import_candidate_matches (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  candidate_id TEXT NOT NULL,
+  existing_work_id TEXT NOT NULL,
+  match_type TEXT NOT NULL,
+  score REAL NOT NULL,
+  evidence_json TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (candidate_id) REFERENCES import_candidates(id) ON DELETE CASCADE,
+  FOREIGN KEY (existing_work_id) REFERENCES works(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS backup_snapshots (
+  id TEXT PRIMARY KEY,
+  file_path TEXT NOT NULL,
+  reason TEXT NOT NULL,
+  actor TEXT,
+  related_job_id TEXT,
+  size_bytes INTEGER,
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_import_candidates_job ON import_candidates(job_id);
+CREATE INDEX IF NOT EXISTS idx_import_candidate_issues_candidate ON import_candidate_issues(candidate_id);
+CREATE INDEX IF NOT EXISTS idx_import_candidate_matches_candidate ON import_candidate_matches(candidate_id);
