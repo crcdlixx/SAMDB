@@ -4,7 +4,7 @@ import type { WorkInput } from "@samdb/shared";
 
 const KNOWN_WORK_FIELDS = new Set([
   "id", "title", "titleOriginal", "aliases", "series", "language", "year",
-  "summaryShort", "summaryFull", "tags", "sourcePrimary", "recordStatus",
+  "titleI18n", "sourceLanguage", "summaryShort", "summaryShortI18n", "summaryFull", "summaryFullI18n", "tags", "sourcePrimary", "recordStatus",
   "visibility", "rightsNote", "editor", "reviewer",
   "releases", "taxonomyTerms", "relations", "externalLinks", "sources", "contributors", "covers"
 ]);
@@ -61,13 +61,17 @@ function buildParsedCandidate(parsed: Record<string, unknown>): ParsedCandidate 
   const workInput: Partial<WorkInput> = {
     id: optionalString(parsed.id) ?? undefined,
     title: optionalString(parsed.title) ?? undefined,
+    titleI18n: asLocalizedText(parsed.titleI18n),
+    sourceLanguage: optionalString(parsed.sourceLanguage),
     titleOriginal: optionalString(parsed.titleOriginal),
     aliases: asStringArray(parsed.aliases),
     series: optionalString(parsed.series),
     language: optionalString(parsed.language),
     year: optionalString(parsed.year),
     summaryShort: optionalString(parsed.summaryShort) ?? undefined,
+    summaryShortI18n: asLocalizedText(parsed.summaryShortI18n),
     summaryFull: optionalString(parsed.summaryFull),
+    summaryFullI18n: asLocalizedText(parsed.summaryFullI18n),
     tags: asStringArray(parsed.tags),
     sourcePrimary: optionalString(parsed.sourcePrimary) ?? undefined,
     recordStatus: optionalString(parsed.recordStatus) as WorkInput["recordStatus"] | undefined,
@@ -98,6 +102,13 @@ export function optionalString(value: unknown): string | null {
 
 export function asStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.map(String) : [];
+}
+
+export function asLocalizedText(value: unknown): Record<string, string> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  return Object.fromEntries(
+    Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === "string")
+  );
 }
 
 export function normalizeTitle(title: string): string {

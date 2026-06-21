@@ -8,6 +8,7 @@ import {
   type WorkDetail,
   type WorkTaxonomyTerm
 } from "../api";
+import { displayWorkText } from "../i18n";
 
 type WorkDetailPageProps = {
   id: string;
@@ -58,15 +59,16 @@ export function WorkDetailPage({ id, onBack }: WorkDetailPageProps) {
 
   if (error) return <p>{error}</p>;
   if (!work) return <p>加载中...</p>;
+  const text = displayWorkText(work);
 
   return (
     <article>
       <button onClick={onBack}>返回</button>
-      {primaryCover ? <img src={primaryCover.url} alt={work.title} className="detail-cover" /> : null}
-      <h1>{work.title}</h1>
+      {primaryCover ? <img src={primaryCover.url} alt={text.title} className="detail-cover" /> : null}
+      <h1>{text.title}</h1>
       {work.titleOriginal ? <p className="muted">{work.titleOriginal}</p> : null}
-      <p>{work.summaryShort}</p>
-      {work.summaryFull ? <p>{work.summaryFull}</p> : null}
+      <p>{text.summaryShort}</p>
+      {text.summaryFull ? <p>{text.summaryFull}</p> : null}
 
       <div className="tag-row">
         {taxonomyTerms.map((term) => (

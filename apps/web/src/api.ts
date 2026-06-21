@@ -76,12 +76,16 @@ export async function fetchAuthMe(): Promise<{ user: AuthUser }> {
 export type Work = {
   id: string;
   title: string;
+  titleI18n?: Record<string, string>;
+  sourceLanguage?: string | null;
   titleOriginal: string | null;
   aliases: string[];
   year: string | null;
   language: string | null;
   summaryShort: string;
+  summaryShortI18n?: Record<string, string>;
   summaryFull: string | null;
+  summaryFullI18n?: Record<string, string>;
   tags: string[];
   sourcePrimary: string;
   recordStatus: string;
@@ -132,12 +136,16 @@ export type WorkDetail = Work & {
 };
 
 export type WorkPayload = {
-  id: string;
+  id?: string;
   title: string;
+  titleI18n?: Record<string, string>;
+  sourceLanguage?: string | null;
   aliases: string[];
   tags: string[];
   summaryShort: string;
+  summaryShortI18n?: Record<string, string>;
   summaryFull?: string | null;
+  summaryFullI18n?: Record<string, string>;
   sourcePrimary: string;
   recordStatus: string;
   visibility: string;

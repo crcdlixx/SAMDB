@@ -33,6 +33,17 @@ export function createDatabase(path = resolve(__dirname, "../../../../data/samdb
 export function initializeDatabase(db: SamDb): void {
   const schema = readFileSync(resolve(__dirname, "schema.sql"), "utf8");
   db.exec(schema);
+  ensureColumn(db, "works", "title_i18n_json", "TEXT");
+  ensureColumn(db, "works", "source_language", "TEXT");
+  ensureColumn(db, "works", "summary_short_i18n_json", "TEXT");
+  ensureColumn(db, "works", "summary_full_i18n_json", "TEXT");
+}
+
+function ensureColumn(db: SamDb, table: string, column: string, definition: string): void {
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+  if (!columns.some((item) => item.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
 }
 
 export function createMemoryDatabase(): SamDb {

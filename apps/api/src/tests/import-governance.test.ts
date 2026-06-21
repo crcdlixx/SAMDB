@@ -133,8 +133,10 @@ visibility: public
     expect(duplicate?.matches.some((m) => m.matchType === "id_exact")).toBe(true);
     expect(duplicate?.action).toBe("needs_review");
 
-    const missing = job.candidates.find((c) => c.proposedTitle === "缺字段作品");
-    expect(missing?.issues.some((i) => i.severity === "error")).toBe(true);
+    const autoId = job.candidates.find((c) => c.proposedTitle === "缺字段作品");
+    expect(autoId?.proposedWorkId).toBeNull();
+    expect(autoId?.action).toBe("create");
+    expect(autoId?.issues.some((i) => i.severity === "error")).toBe(false);
 
     const works = db.prepare("SELECT COUNT(*) as count FROM works").get() as { count: number };
     expect(works.count).toBe(1);
@@ -301,6 +303,46 @@ visibility: public
     expect(merged.summary_full).toBe("full summary from candidate");
   });
 
+  it("generates uuid ids when importing candidates without ids", async () => {
+    const { db, path, cleanup } = createTempDatabase();
+    cleanups.push(cleanup);
+    const app = createAdminApp(db, { databasePath: path });
+    const token = await bootstrapOwnerToken(db);
+
+    const preview = await app.request("/import-jobs/preview", {
+      method: "POST",
+      headers: jsonHeaders(token),
+      body: JSON.stringify({
+        sourceType: "markdown",
+        markdown: `---\ntitle: Auto ID Work\nsummaryShort: x\nsourcePrimary: https://example.test/auto-id\nrecordStatus: draft\nvisibility: public\n---\n`
+      })
+    });
+    const job = await preview.json() as {
+      id: string;
+      candidates: Array<{ proposedWorkId: string | null; action: string; status: string; issues: Array<{ severity: string }> }>;
+    };
+
+    expect(job.candidates[0].proposedWorkId).toBeNull();
+    expect(job.candidates[0].action).toBe("create");
+    expect(job.candidates[0].status).toBe("valid");
+    expect(job.candidates[0].issues.some((issue) => issue.severity === "error")).toBe(false);
+
+    const execute = await app.request(`/import-jobs/${job.id}/execute`, {
+      method: "POST",
+      headers: jsonHeaders(token)
+    });
+    const executed = await execute.json() as {
+      candidates: Array<{ resultWorkId: string | null; status: string }>;
+    };
+
+    expect(execute.status).toBe(200);
+    expect(executed.candidates[0].status).toBe("imported");
+    expect(executed.candidates[0].resultWorkId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(db.prepare("SELECT id FROM works WHERE source_primary = ?").get("https://example.test/auto-id")).toEqual({
+      id: executed.candidates[0].resultWorkId
+    });
+  });
+
   it("rejects execute when needs_review remains", async () => {
     const { db, path, cleanup } = createTempDatabase();
     cleanups.push(cleanup);
@@ -312,7 +354,7 @@ visibility: public
       headers: jsonHeaders(token),
       body: JSON.stringify({
         sourceType: "markdown",
-        markdown: `---\ntitle: no id\nsummaryShort: x\nsourcePrimary: https://example.test/x\nrecordStatus: draft\nvisibility: public\n---\n`
+        markdown: `---\nsummaryShort: x\nsourcePrimary: https://example.test/x\nrecordStatus: draft\nvisibility: public\n---\n`
       })
     });
     const job = await preview.json() as { id: string };

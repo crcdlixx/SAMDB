@@ -1,16 +1,22 @@
 import { z } from "zod";
 import { recordStatusValues, releaseStatusValues, visibilityValues, workRelationTypeValues } from "./enums";
 
+export const localizedTextSchema = z.record(z.string().min(1), z.string()).optional();
+
 export const workSchema = z.object({
-  id: z.string().min(1),
+  id: z.string().min(1).optional(),
   title: z.string().min(1),
+  titleI18n: localizedTextSchema,
+  sourceLanguage: z.string().nullable().optional(),
   titleOriginal: z.string().nullable().optional(),
   aliases: z.array(z.string()).default([]),
   series: z.string().nullable().optional(),
   language: z.string().nullable().optional(),
   year: z.string().nullable().optional(),
   summaryShort: z.string().min(1),
+  summaryShortI18n: localizedTextSchema,
   summaryFull: z.string().nullable().optional(),
+  summaryFullI18n: localizedTextSchema,
   tags: z.array(z.string()).default([]),
   sourcePrimary: z.string().min(1),
   recordStatus: z.enum(recordStatusValues).default("draft"),

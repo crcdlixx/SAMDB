@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { fetchWorks, type Work } from "../api";
 import { WorkCard } from "../components/WorkCard";
+import { displayWorkText } from "../i18n";
 
 type WorksPageProps = {
   onOpenWork: (id: string) => void;
@@ -54,14 +55,14 @@ export function WorksPage({ onOpenWork }: WorksPageProps) {
             <WorkCard key={work.id} work={work} onOpen={onOpenWork} />
           ) : (
             <button
-              aria-label={work.title}
+              aria-label={displayWorkText(work).title}
               className="work-compact-row"
               key={work.id}
               onClick={() => onOpenWork(work.id)}
               type="button"
             >
               <div>
-                <strong>{work.title}</strong>
+                <strong>{displayWorkText(work).title}</strong>
                 {work.titleOriginal ? <span className="muted">{work.titleOriginal}</span> : null}
               </div>
               <span className="muted">{work.year ?? "年份未定"}</span>

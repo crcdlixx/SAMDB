@@ -22,6 +22,7 @@ vi.mock("../api", async () => {
     createAdminRelease: vi.fn(),
     createAdminCover: vi.fn(),
     createAdminSource: vi.fn(),
+    createAdminWorkRelation: vi.fn(),
     createAdminWork: vi.fn(),
     deleteAdminAccessEntry: vi.fn(),
     deleteAdminRelease: vi.fn(),
@@ -57,6 +58,13 @@ const workOne: Work = {
   visibility: "public"
 };
 
+async function clickWorkListItem(title: string) {
+  await screen.findByRole("heading", { name: "作品列表" });
+  const titleElement = screen.getAllByText(title).find((element) => element.tagName.toLowerCase() === "strong");
+  if (!titleElement) throw new Error(`Cannot find work list item: ${title}`);
+  await userEvent.click(titleElement);
+}
+
 describe("AdminWorksPage", () => {
   afterEach(() => {
     cleanup();
@@ -76,6 +84,7 @@ describe("AdminWorksPage", () => {
     vi.mocked(api.deleteAdminAccessEntry).mockResolvedValue(undefined);
     vi.mocked(api.deleteAdminRelease).mockResolvedValue(undefined);
     vi.mocked(api.deleteAdminWork).mockResolvedValue(undefined);
+    vi.mocked(api.createAdminWorkRelation).mockResolvedValue({ ok: true });
     vi.mocked(api.updateAdminAccessEntry).mockResolvedValue({} as api.AccessEntry);
     vi.mocked(api.updateAdminRelease).mockResolvedValue({} as api.Release);
     vi.mocked(api.updateAdminWork).mockResolvedValue({
@@ -96,10 +105,10 @@ describe("AdminWorksPage", () => {
   it("updates and deletes the selected work from the edit panel", async () => {
     render(<AdminWorksPage />);
 
-    await userEvent.click(await screen.findByText("First work"));
+    await clickWorkListItem("First work");
     await screen.findByText("当前作品：work-one");
 
-    const editTitleInput = screen.getAllByLabelText("标题")[1];
+    const editTitleInput = screen.getAllByLabelText("标题 zh-CN")[1];
     await userEvent.clear(editTitleInput);
     await userEvent.type(editTitleInput, "Edited work");
     await userEvent.click(screen.getByRole("button", { name: "保存修改" }));
@@ -155,7 +164,7 @@ describe("AdminWorksPage", () => {
 
     render(<AdminWorksPage />);
 
-    await userEvent.click(await screen.findByText("First work"));
+    await clickWorkListItem("First work");
     await screen.findByText("Main Release");
     await userEvent.click(screen.getByRole("button", { name: "隐藏版本：rel-one" }));
     await userEvent.click(screen.getByRole("button", { name: "隐藏获取方式：acc-one" }));
@@ -171,6 +180,38 @@ describe("AdminWorksPage", () => {
       }));
       expect(api.deleteAdminAccessEntry).toHaveBeenCalledWith("acc-one");
       expect(api.deleteAdminRelease).toHaveBeenCalledWith("rel-one");
+    });
+  });
+
+  it("creates a work and then creates selected relations", async () => {
+    const createdWork: Work = {
+      ...workOne,
+      id: "created-work",
+      title: "Created work"
+    };
+    vi.mocked(api.createAdminWork).mockResolvedValue(createdWork);
+    vi.mocked(api.fetchAdminWorks).mockResolvedValue({ items: [workOne, createdWork] });
+
+    render(<AdminWorksPage />);
+
+    await screen.findByRole("heading", { name: "作品列表" });
+    await userEvent.type(screen.getByLabelText("标题 zh-CN"), "Created work");
+    await userEvent.type(screen.getByLabelText("一句话简介 zh-CN"), "Created summary");
+    await userEvent.type(screen.getByLabelText("主来源"), "https://example.test/created");
+    await userEvent.selectOptions(screen.getByLabelText("关联目标作品"), "work-one");
+    await userEvent.selectOptions(screen.getByLabelText("关系类型"), "related");
+    await userEvent.click(screen.getByRole("button", { name: "添加到创建关系" }));
+    await userEvent.click(screen.getByRole("button", { name: "创建作品" }));
+
+    await waitFor(() => {
+      expect(api.createAdminWork).toHaveBeenCalledWith(expect.objectContaining({
+        title: "Created work",
+        summaryShort: "Created summary"
+      }));
+      expect(api.createAdminWorkRelation).toHaveBeenCalledWith("created-work", expect.objectContaining({
+        targetWorkId: "work-one",
+        relationType: "related"
+      }));
     });
   });
 });

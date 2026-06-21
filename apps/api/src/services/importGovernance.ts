@@ -331,9 +331,6 @@ function validateCandidate(
 ): { issues: ValidationIssue[]; hasError: boolean; hasWarning: boolean } {
   const issues: ValidationIssue[] = [];
 
-  if (!workInput.id) {
-    issues.push({ severity: "error", issueType: "missing_field", fieldPath: "id", message: "缺少必填字段 id" });
-  }
   if (!workInput.title) {
     issues.push({ severity: "error", issueType: "missing_field", fieldPath: "title", message: "缺少必填字段 title" });
   }
@@ -968,7 +965,7 @@ function applyCandidateAction(db: SamDb, row: CandidateRow, action: CandidateAct
   const workInput = parsedToWorkInput(parsed);
 
   if (action === "create") {
-    if (getWorkById(db, workInput.id)) {
+    if (workInput.id && getWorkById(db, workInput.id)) {
       throw new Error(`Work id already exists: ${workInput.id}`);
     }
     return createWork(db, workInput);
@@ -993,15 +990,19 @@ function applyCandidateAction(db: SamDb, row: CandidateRow, action: CandidateAct
 
 function parsedToWorkInput(parsed: Record<string, unknown>): WorkInput {
   return {
-    id: String(parsed.id ?? ""),
+    id: parsed.id != null && String(parsed.id).trim() ? String(parsed.id) : undefined,
     title: String(parsed.title ?? ""),
+    titleI18n: asLocalizedObject(parsed.titleI18n),
+    sourceLanguage: parsed.sourceLanguage != null ? String(parsed.sourceLanguage) : null,
     titleOriginal: parsed.titleOriginal != null ? String(parsed.titleOriginal) : null,
     aliases: asStringArray(parsed.aliases),
     series: parsed.series != null ? String(parsed.series) : null,
     language: parsed.language != null ? String(parsed.language) : null,
     year: parsed.year != null ? String(parsed.year) : null,
     summaryShort: String(parsed.summaryShort ?? ""),
+    summaryShortI18n: asLocalizedObject(parsed.summaryShortI18n),
     summaryFull: parsed.summaryFull != null ? String(parsed.summaryFull) : null,
+    summaryFullI18n: asLocalizedObject(parsed.summaryFullI18n),
     tags: asStringArray(parsed.tags),
     sourcePrimary: String(parsed.sourcePrimary ?? ""),
     recordStatus: (parsed.recordStatus ?? "draft") as WorkInput["recordStatus"],
@@ -1012,19 +1013,30 @@ function parsedToWorkInput(parsed: Record<string, unknown>): WorkInput {
   };
 }
 
+function asLocalizedObject(value: unknown): Record<string, string> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  return Object.fromEntries(
+    Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === "string")
+  );
+}
+
 function mergeWork(db: SamDb, existing: WorkView, candidate: WorkInput): WorkView {
   const mergedAliases = [...new Set([...existing.aliases, ...candidate.aliases])];
   const mergedTags = [...new Set([...existing.tags, ...candidate.tags])];
 
   return updateWork(db, existing.id, {
     title: existing.title || candidate.title,
+    titleI18n: { ...candidate.titleI18n, ...existing.titleI18n },
+    sourceLanguage: existing.sourceLanguage ?? candidate.sourceLanguage,
     titleOriginal: existing.titleOriginal ?? candidate.titleOriginal,
     aliases: mergedAliases,
     series: existing.series ?? candidate.series,
     language: existing.language ?? candidate.language,
     year: existing.year ?? candidate.year,
     summaryShort: existing.summaryShort || candidate.summaryShort,
+    summaryShortI18n: { ...candidate.summaryShortI18n, ...existing.summaryShortI18n },
     summaryFull: existing.summaryFull ?? candidate.summaryFull,
+    summaryFullI18n: { ...candidate.summaryFullI18n, ...existing.summaryFullI18n },
     tags: mergedTags,
     sourcePrimary: existing.sourcePrimary || candidate.sourcePrimary,
     rightsNote: existing.rightsNote ?? candidate.rightsNote,

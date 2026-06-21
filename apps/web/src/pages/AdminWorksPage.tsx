@@ -3,6 +3,7 @@ import {
   createAdminAccessEntry,
   createAdminRelease,
   createAdminWork,
+  createAdminWorkRelation,
   deleteAdminAccessEntry,
   deleteAdminRelease,
   deleteAdminWork,
@@ -30,6 +31,8 @@ import { RelationForm } from "../components/RelationForm";
 import { ReleaseForm } from "../components/ReleaseForm";
 import { TaxonomyPanel } from "../components/TaxonomyPanel";
 import { WorkForm } from "../components/WorkForm";
+import type { DraftRelation } from "../components/WorkForm";
+import { displayWorkText } from "../i18n";
 
 export function AdminWorksPage({ onOpenImportGovernance }: { onOpenImportGovernance?: () => void } = {}) {
   const [works, setWorks] = useState<Work[]>([]);
@@ -84,8 +87,11 @@ export function AdminWorksPage({ onOpenImportGovernance }: { onOpenImportGoverna
     ]);
   }
 
-  async function handleCreate(payload: WorkPayload) {
+  async function handleCreate(payload: WorkPayload, relations: DraftRelation[] = []) {
     const work = await createAdminWork(payload);
+    for (const relation of relations) {
+      await createAdminWorkRelation(work.id, relation);
+    }
     await loadWorks();
     setSelectedWorkId(work.id);
   }
@@ -160,12 +166,12 @@ export function AdminWorksPage({ onOpenImportGovernance }: { onOpenImportGoverna
         <AuditLogPanel />
         <ImportPanel onOpenWorkbench={onOpenImportGovernance} />
         <h1>新建作品</h1>
-        <WorkForm submitLabel="创建作品" onSubmit={handleCreate} />
+        <WorkForm submitLabel="创建作品" works={works} onSubmit={handleCreate} />
         <h2>作品列表</h2>
         <div className="work-grid">
           {works.map((work) => (
             <article className="work-card" key={work.id} onClick={() => setSelectedWorkId(work.id)}>
-              <strong>{work.title}</strong>
+              <strong>{displayWorkText(work).title}</strong>
               <span className="muted">{work.id}</span>
               <div className="tag-row">
                 <span className="tag">{work.recordStatus}</span>
@@ -183,7 +189,7 @@ export function AdminWorksPage({ onOpenImportGovernance }: { onOpenImportGoverna
           <>
             <p className="muted">当前作品：{selectedWorkId}</p>
             <h3>基础元数据</h3>
-            <WorkForm initial={selectedWork} submitLabel="保存修改" onSubmit={handleUpdate} />
+            <WorkForm initial={selectedWork} submitLabel="保存修改" works={works} onSubmit={handleUpdate} />
             <div className="button-row">
               <button
                 type="button"
